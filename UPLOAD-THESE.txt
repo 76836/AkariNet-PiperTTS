@@ -1,0 +1,19 @@
+Upload these large files to the root of this repository (or as Release assets):
+
+REQUIRED for the engine to work:
+
+1. model.onnx          (~63 MB)  — the Piper voice model
+2. ort-wasm.wasm       (~22 MB)  — ONNX Runtime WASM binary
+3. phonemizer.js       (~1.3 MB) — espeak-ng phonemizer with embedded data
+4. ort.all.min.js      (~0.8 MB) — ORT UMD (or switch worker.js to the jsDelivr CDN)
+5. ort-wasm.mjs        (~45 KB)  — already small; can be committed
+
+After upload, enable GitHub Pages (Settings → Pages → main branch / root).
+Then the URLs become:
+
+  https://76836.github.io/AkariNet-PiperTTS/model.onnx
+  https://76836.github.io/AkariNet-PiperTTS/ort-wasm.wasm
+  https://76836.github.io/AkariNet-PiperTTS/phonemizer.js
+  etc.
+
+The Akari loader (characters/akari/PiperTTS.js) will load from these Pages URLs.

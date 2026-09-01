@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Akari TTS — Piper Offline</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 560px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      background: #faf7f5;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    p.sub { color: #888; margin: 0 0 24px; font-size: 0.9rem; }
+    textarea {
+      width: 100%; height: 90px; resize: vertical;
+      font-size: 15px; font-family: inherit;
+      padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; outline: none;
+    }
+    textarea:focus { border-color: #e87a9e; }
+    .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    button {
+      padding: 10px 24px; font-size: 15px; font-family: inherit;
+      border: none; border-radius: 8px; cursor: pointer;
+      background: #e87a9e; color: white;
+    }
+    button:disabled { background: #ccc; cursor: default; }
+    button:not(:disabled):hover { background: #d9688a; }
+    label { font-size: 0.85rem; color: #666; display: flex; align-items: center; gap: 6px; }
+    input[type=range] { width: 100px; }
+    #status { color: #888; margin: 12px 0; font-size: 0.9rem; min-height: 1.2em; }
+    audio { width: 100%; margin-top: 8px; }
+    code { background: #f0e8e4; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+
+  <h1>🌸 Akari TTS</h1>
+  <p class="sub">Offline Piper voice — part of <a href="https://github.com/76836/Akari">AkariNet</a>. Upload <code>model.onnx</code> + WASM binaries first.</p>
+
+  <textarea id="text" spellcheck="false">Hello! I am Akari. This voice runs entirely in your browser from a Piper model fine-tuned on my voice.</textarea>
+
+  <div class="controls">
+    <button id="speak" disabled>Speak</button>
+    <button id="stop" disabled>Stop</button>
+    <label>Speed <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1"><span id="speedVal">1.0x</span></label>
+  </div>
+  <div id="status">Waiting for model files…</div>
+  <audio id="audio" controls></audio>
+
+  <script src="ort.all.min.js"></script>
+  <script src="phonemizer.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

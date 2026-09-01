@@ -155,7 +155,7 @@ async function initMainThread() {
   ort.env.wasm.wasmPaths = { mjs: mjsUrl, wasm: wasmUrl };
 
   setStatus("Loading voice model…");
-  const modelBytes = await loadBytes("model.onnx", "fallback/model.b64.js", "__modelB64");
+  const modelBytes = await loadBytes("https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx", "fallback/model.b64.js", "__modelB64");
   session = await ort.InferenceSession.create(modelBytes, {
     executionProviders: [{ name: "wasm", simd: true }],
   });
@@ -170,7 +170,7 @@ async function initWorker() {
   worker = new Worker("worker.js");
 
   setStatus("Loading voice model…");
-  const modelBytes = await loadBytes("model.onnx", "fallback/model.b64.js", "__modelB64");
+  const modelBytes = await loadBytes("https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx", "fallback/model.b64.js", "__modelB64");
 
   await new Promise((resolve, reject) => {
     const handler = (e) => {

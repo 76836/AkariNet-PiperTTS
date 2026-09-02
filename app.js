@@ -6,6 +6,7 @@
 
 const MODEL_URL = "https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx";
 const INFERENCE = { noise_scale: 0.667, noise_w: 0.8 };
+const PLAYBACK_RATE = 1.123;
 
 const $text = document.getElementById("text");
 const $speak = document.getElementById("speak");
@@ -49,6 +50,7 @@ class AudioQueue {
     if (this.queue.length === 0) { this.playing = false; return; }
     this.playing = true;
     this.el.src = URL.createObjectURL(this.queue.shift());
+    this.el.playbackRate = PLAYBACK_RATE;
     this.el.play();
   }
   clear() {
@@ -56,6 +58,7 @@ class AudioQueue {
     this.playing = false;
     this.el.pause();
     this.el.removeAttribute("src");
+    this.el.playbackRate = PLAYBACK_RATE;
   }
 }
 

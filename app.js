@@ -1,11 +1,10 @@
 /**
  * Akari TTS — main application logic (standalone demo).
  * For AkariNet integration see the characters/akari/PiperTTS.js loader
- * in the main Akari repo, which points at this Pages site.
- *
- * Upload model.onnx, ort-wasm.wasm, phonemizer.js, ort.all.min.js first.
+ * in the main Akari repo.
  */
 
+const MODEL_URL = "https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx";
 const INFERENCE = { noise_scale: 0.667, noise_w: 0.8 };
 
 const $text = document.getElementById("text");
@@ -23,58 +22,16 @@ let session = null;
 let worker = null;
 let ready = false;
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error("Failed to load script: " + src));
-    document.head.appendChild(s);
-  });
+async function loadBytes(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to load ${url}: HTTP ${resp.status}`);
+  return new Uint8Array(await resp.arrayBuffer());
 }
 
-async function b64ToBytes(b64) {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-  return bytes;
-}
-
-async function loadBytes(url, fallback, varName) {
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    return new Uint8Array(await resp.arrayBuffer());
-  } catch (e) {
-    if (fallback) {
-      await loadScript(fallback);
-      return await b64ToBytes(window[varName]);
-    }
-    throw e;
-  }
-}
-
-async function loadBlobUrl(url, fallback, varName, mime) {
-  const bytes = await loadBytes(url, fallback, varName);
-  return URL.createObjectURL(new Blob([bytes], { type: mime }));
-}
-
-async function loadConfig(url, fallback) {
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    return await resp.json();
-  } catch (e) {
-    if (fallback) {
-      await loadScript(fallback);
-      return window.__modelConfig;
-    }
-    throw e;
-  }
+async function loadConfig() {
+  const resp = await fetch("config.json");
+  if (!resp.ok) throw new Error(`Failed to load config.json: HTTP ${resp.status}`);
+  return await resp.json();
 }
 
 class AudioQueue {
@@ -118,12 +75,12 @@ function encodeWav(samples, sampleRate) {
   const buf = new ArrayBuffer(44 + samples.length * 2);
   const v = new DataView(buf);
   const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, "RIFF");     v.setUint32(4, 36 + samples.length * 2, true);
-  str(8, "WAVE");     str(12, "fmt ");
+  str(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true);
+  str(8, "WAVE"); str(12, "fmt ");
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
   v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
-  v.setUint16(32, 2, true);   v.setUint16(34, 16, true);
-  str(36, "data");    v.setUint32(40, samples.length * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, samples.length * 2, true);
   for (let i = 0, o = 44; i < samples.length; i++, o += 2) {
     const s = Math.max(-1, Math.min(1, samples[i]));
     v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
@@ -132,7 +89,7 @@ function encodeWav(samples, sampleRate) {
 }
 
 async function init() {
-  config = await loadConfig("config.json", "fallback/config.js");
+  config = await loadConfig();
 
   if (IS_FILE) {
     await initMainThread();
@@ -148,14 +105,16 @@ async function init() {
 
 async function initMainThread() {
   setStatus("Loading ORT runtime…");
-  const mjsUrl = await loadBlobUrl("ort-wasm.mjs", "fallback/ort-mjs.b64.js", "__ortMjsB64", "text/javascript");
-  const wasmUrl = await loadBlobUrl("ort-wasm.wasm", "fallback/ort-wasm.b64.js", "__ortWasmB64", "application/wasm");
+  const mjsBytes = await loadBytes("ort-wasm.mjs");
+  const wasmBytes = await loadBytes("ort-wasm.wasm");
+  const mjsUrl = URL.createObjectURL(new Blob([mjsBytes], { type: "text/javascript" }));
+  const wasmUrl = URL.createObjectURL(new Blob([wasmBytes], { type: "application/wasm" }));
 
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.wasmPaths = { mjs: mjsUrl, wasm: wasmUrl };
 
   setStatus("Loading voice model…");
-  const modelBytes = await loadBytes("https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx", "fallback/model.b64.js", "__modelB64");
+  const modelBytes = await loadBytes(MODEL_URL);
   session = await ort.InferenceSession.create(modelBytes, {
     executionProviders: [{ name: "wasm", simd: true }],
   });
@@ -170,7 +129,7 @@ async function initWorker() {
   worker = new Worker("worker.js");
 
   setStatus("Loading voice model…");
-  const modelBytes = await loadBytes("https://huggingface.co/76836-HW/AkariNet-PiperTTS/resolve/main/model.onnx", "fallback/model.b64.js", "__modelB64");
+  const modelBytes = await loadBytes(MODEL_URL);
 
   await new Promise((resolve, reject) => {
     const handler = (e) => {

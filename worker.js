@@ -3,12 +3,10 @@
  *
  * Loads ORT + phonemizer via importScripts (relative to this file's URL),
  * receives the model bytes from the main thread, and streams audio chunks
- * back per sentence.
+ * back per parsed utterance.
  */
 
-// Prefer CDN for ORT if you want a lighter repo; otherwise keep local copies.
 importScripts(
-  // "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.all.min.js",
   "ort.all.min.js",
   "phonemizer.js"
 );
@@ -53,30 +51,43 @@ self.onmessage = async (e) => {
 
   if (type === "speak") {
     generating = true;
-    const { text, lengthScale, noise_scale, noise_w } = e.data;
+    const { segments, noise_scale, noise_w } = e.data;
 
     try {
-      const sentences = await self.phonemize(text, config.espeak.voice);
-      const idMap = config.phoneme_id_map;
-      const total = sentences.length;
+      const items = Array.isArray(segments) ? segments : [{ text: e.data.text, lengthScale: e.data.lengthScale || 1.0 }];
+      let total = items.length;
 
       for (let i = 0; i < total; i++) {
         if (!generating) break;
 
-        const ipa = sentences[i];
-        if (!ipa || !ipa.trim()) continue;
-        const ids = phonemesToIds(ipa, idMap);
-        if (ids.length <= 2) continue;
+        const item = items[i] || {};
+        const text = String(item.text || "").trim();
+        if (!text) continue;
 
-        const feeds = {
-          input: new self.ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
-          input_lengths: new self.ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]),
-          scales: new self.ort.Tensor("float32", Float32Array.from([noise_scale, lengthScale, noise_w]), [3])
-        };
-        const out = await session.run(feeds);
+        const sentences = await self.phonemize(text, config.espeak.voice);
+        const idMap = config.phoneme_id_map;
+        const lengthScale = Number(item.lengthScale) || 1.0;
 
-        const audio = out.output.data;
-        self.postMessage({ type: "chunk", audio, sentence: i + 1, total }, [audio.buffer]);
+        for (const ipa of sentences) {
+          if (!generating) break;
+          if (!ipa || !ipa.trim()) continue;
+
+          const ids = phonemesToIds(ipa, idMap);
+          if (ids.length <= 2) continue;
+
+          const feeds = {
+            input: new self.ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+            input_lengths: new self.ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]),
+            scales: new self.ort.Tensor("float32", Float32Array.from([
+              Number(noise_scale) || 0.667,
+              lengthScale,
+              Number(noise_w) || 0.8
+            ]), [3])
+          };
+          const out = await session.run(feeds);
+          const audio = out.output.data;
+          self.postMessage({ type: "chunk", audio, utterance: i + 1, total }, [audio.buffer]);
+        }
       }
 
       self.postMessage({ type: "done" });
